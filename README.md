@@ -4,3 +4,12 @@
 
 - 개발 계획: [docs/DEVELOPMENT_PLAN.md](docs/DEVELOPMENT_PLAN.md)
 - 원본 기획자료: [docs/planning/](docs/planning/)
+
+## 개발
+
+```bash
+npm install
+npm test        # 단위 테스트
+npm run dev     # 개발 서버
+npm run build   # 타입 검사 + 빌드
+```

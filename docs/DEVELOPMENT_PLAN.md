@@ -2,7 +2,7 @@
 
 > 근거 자료: `docs/planning/문서/활동지도_개념정의.md`, `활동지도_도구_개발기획서_v0.1.docx`(이하 기획서), `docs/planning/샘플이미지/01~03`
 > 관련 작업 기록: Mindy ISS-0577(기획서 작성)
-> 작성일: 2026-11-03 · 상태: 검토용 초안
+> 작성일: 2026-11-03 · 상태: v0.2 (0단계 결정 반영, M1 구현)
 
 이 문서는 기획서의 요구사항(F01~F10)을 구현 단위로 나누고, 기술 선택안과 일정 순서, 개발 전 확정할 사항을 정리합니다. 기술 스택과 저장 방식은 **제안**이며, 0단계에서 확정합니다.
 
@@ -36,7 +36,7 @@
 | G4 | 목적 보기의 "다른 활동을 가능하게 하는 기여"(운영·재원·회복)를 구분하는 필드가 없음 | 기여 관계에 `enabling: boolean` 플래그. 목적 보기 하단 띠에 별도 배치 |
 | G5 | "필요하면 중간 변화 단계 추가" → 목적 보기 열 수가 가변 | 변화→변화 기여를 허용하고 열(layer)은 최장 경로 기준으로 계산 |
 | G6 | 기여 내역의 "비공개 메모"와 내보내기 공개 범위 | 내보내기 시 "비공개 메모 제외" 옵션을 기본 켬 |
-| G7 | "기존 순환 도구"의 정체·데이터 형식이 자료에 없음 | 사용자에게 확인 필요(2차 단계 착수 조건) |
+| G7 | 기획서 v0.1의 미결정 표와 "바로 이어서 할 작업"에 "기존 순환 도구(시스템 사고 도구)"가 나오지만, 실제 도구는 확인되지 않음. 기획서 작성 과정에서 생긴 가정으로 판단 | **결정: 별도 구현.** 순환 보기는 자체 데이터(변화 요인·영향 관계)로 만든다. 외부 도구 연동은 필요가 생기면 3단계에서 검토 |
 | G8 | 활동 간 연결의 하위 종류(경험 제공·지원·파생·자원 공유·경합·활용)가 문서마다 조금씩 다름 | 고정 어휘로 확정(§3.2), 역할명·설명은 자유 입력 |
 
 ---
@@ -64,8 +64,10 @@
 ## 3. 데이터 모델 (스키마 v1)
 
 ### 3.1 엔티티
+> 실제 정의는 `src/domain/schema.ts`(Zod)가 기준이며, 아래는 요약입니다.
+
 ```ts
-type ID = string;                       // ULID. 이름이 같아도 자동 병합하지 않음
+type ID = string;                       // 접두어_UUID. 이름이 같아도 자동 병합하지 않음
 type DateRange = { start?: PartialDate; end?: PartialDate };   // 미정 허용
 type PartialDate = { y: number; m?: number; d?: number };      // 날짜 정밀도 가변
 type Evidence = 'hypothesis' | 'observed' | 'confirmed';       // 기대·가설 / 관찰 / 자료로 확인
@@ -81,7 +83,7 @@ interface Activity  {
   tags?: string[];
 }
 interface Outcome   { id; name; description?; level: 'change' | 'purpose'; target?: string }  // 변화·목적
-interface Factor    { id; name; definition?; increaseMeans?: string; relatedIds?: ID[] }      // 변화 요인 (2차 UI)
+interface Factor    { id; name; definition?; increaseMeans?: string; sharedBase?: boolean }  // 변화 요인 (활동과는 factorLink로 연결)
 ```
 
 ### 3.2 관계
@@ -90,6 +92,7 @@ type RelationKind =
   | 'participation'   // 주체 → 활동 (역할)
   | 'activityLink'    // 활동 ↔ 활동 (하위: experience, support, derive, shareResource, compete, utilize)
   | 'contribution'    // 활동/변화 → 변화/목적
+  | 'factorLink'      // 활동/변화 → 요인 (G3: 공통 기반 사용·완화)
   | 'influence'       // 요인 → 요인 (2차)
   | 'actorLink';      // 주체 ↔ 주체 (소속·협약)
 // 포함 관계는 Activity.parentId로 표현
@@ -104,7 +107,7 @@ interface Relation {
   role?: { name: string; description?: string };            // participation 전용
   contributions?: Contribution[];                           // participation, activityLink(support) 전용
   enabling?: boolean;                                       // contribution 전용 (G4)
-  influence?: { sign: '+' | '-' | '?'; delayed?: boolean; delayNote?: string };  // influence 전용
+  influence?: { sign: '+' | '-' | '?'; delayed?: boolean; delayNote?: string };  // influence·factorLink 전용
 }
 interface Contribution {
   kind: 'time' | 'money' | 'space' | 'knowledge' | 'network';  // 시간·노동/돈/공간·장비/기술·지식/사람·접점
@@ -152,10 +155,10 @@ interface ReviewNote { id; targetIds: ID[]; question?: string; judgment?: string
 기간은 1인 개발 기준 추정치입니다. 기획서가 일정·비용을 확정하지 않았으므로 0단계 후 다시 산정합니다.
 
 ### 0단계 — 설계 확정 (약 1주)
-- [ ] §7 결정 항목 확정(저장 방식, 첫 사용 범위, G1~G8 처리)
-- [ ] 실제 활동 10~15개, 주체, 관계를 표본 JSON으로 작성(관계는 가설로 표시). 샘플 이미지 01~03의 내용을 시드 데이터로 사용
-- [ ] 스키마 v1 확정, 관계 어휘표 확정
-- [ ] 기존 순환 도구 조사(G7)
+- [x] §7 결정 항목 확정(저장 방식, 첫 사용 범위, G1~G8 처리)
+- [x] 실제 활동 10~15개, 주체, 관계를 표본 JSON으로 작성(관계는 가설로 표시). 샘플 이미지 01~03의 내용을 시드 데이터로 사용
+- [x] 스키마 v1 확정, 관계 어휘표 확정
+- [x] 기존 순환 도구 확인(G7) → 별도 구현으로 결정
 - **완료 조건**: 표본 데이터가 스키마로 모두 표현되고 검증을 통과
 
 ### 1단계 — 1차 사용 버전 (약 6~7주)
@@ -211,19 +214,32 @@ docs/
 
 ---
 
-## 7. 개발 전 결정 필요 항목
+## 7. 결정 사항 (2026-11-03 확정)
 
-| 항목 | 제안 | 결정 주체 |
-|---|---|---|
-| 저장·배포 | 로컬 우선 정적 웹앱 + JSON 백업 | 사용자 |
-| 첫 사용 범위 | 개인 작업공간. 주체(Actor)와 접근 계정은 분리 | 사용자 |
-| 관계 진행 상태(G1) | `planned / active / ended` 필드 추가 | 사용자 확인 |
-| 상태→시간층 규칙(G2) | 상태에서 도출 + 수동 지정 | 사용자 확인 |
-| 공통 기반 노드(G3) | 1차는 변화 요인으로 기록 | 표본 데이터로 검증 |
-| 시간 표시 | 시간층 우선, 날짜는 연·월·일 정밀도 가변 | 확정 |
-| 관계 어휘(G8) | §3.2 고정 어휘 | 사용자 확인 |
-| 기존 순환 도구(G7) | 도구명·데이터 형식 공유 요청 | 사용자 |
-| 성능 목표 | 표본 규모 확정 후 설정(잠정: 활동 200·관계 1,000에서 보기 전환 1초 이내) | 0단계 |
+| 항목 | 결정 |
+|---|---|
+| 저장·배포 | 브라우저 저장(IndexedDB) + JSON 파일 백업. 클라우드는 후속 검토 |
+| 첫 사용 범위 | 개인 작업공간. 주체(Actor)와 접근 계정은 분리 |
+| 관계 진행 상태(G1) | `status: planned / active / ended` 추가 |
+| 상태→시간층 규칙(G2) | 완료→해온 일, 진행·지속·중단→진행 중, 구상·예정→하려는 일. `timeLayerOverride`로 수동 지정 |
+| 공통 기반 노드(G3) | 변화 요인으로 기록하고 `sharedBase: true` 표시. 활동과는 `factorLink` 관계(영향 부호 선택)로 연결 |
+| enabling 기여(G4) | 기여 관계에 `enabling` 플래그 |
+| 목적 보기 단계(G5) | 변화→변화 기여 허용, 열은 최장 경로 기준 |
+| 비공개 메모(G6) | 내보내기 시 기본 제외 |
+| 기존 순환 도구(G7) | 별도 구현 |
+| 관계 어휘(G8) | `participation, activityLink(experience·support·derive·utilize·shareResource·compete), contribution, factorLink, influence, actorLink` |
+| 시간 표시 | 시간층 우선, 날짜는 연·월·일 정밀도 가변 |
+| ID | `종류접두어_UUID`. 표본 데이터는 읽기 쉬운 고정 ID(A01 등) 사용 |
+| 성능 목표 | 잠정: 활동 200·관계 1,000에서 보기 전환 1초 이내. 표본 확대 후 재설정 |
+
+## 7-1. 진행 현황
+
+- [x] 0단계: 결정 확정, 스키마 v1, 관계 어휘, 표본 데이터(`src/fixtures/sample.ts`, 활동 12·주체 5·관계 38)
+- [x] M1 도메인 코어: Zod 스키마(`src/domain/schema.ts`), 검증 규칙(`validate.ts`), 연산(`ops.ts`), 시간 규칙(`time.ts`), 실행 취소 스토어(`src/store/`), 단위 테스트 27개
+- [ ] M2 저장·복구
+- [ ] M3 편집 UI
+- [ ] M4 세 가지 보기
+- [ ] M5 탐색·마감
 
 ## 8. 위험과 대응
 
@@ -236,6 +252,5 @@ docs/
 | 개인정보 노출 | 서버 없음, 내보내기 시 비공개 메모 제외 기본값 |
 
 ## 9. 바로 이어서 할 작업
-1. §7 결정 항목 검토(특히 G1·G2·G3, 저장 방식, 기존 순환 도구)
-2. 표본 데이터 `src/fixtures/sample.json` 작성(샘플 01~03의 활동·변화·목적 사용)
-3. M1 착수: 프로젝트 골격, 도메인 스키마, 검증 규칙과 단위 테스트
+1. 표본 데이터를 실제 활동으로 보완(현재는 샘플 이미지 기반 가설)
+2. M2 착수: IndexedDB 자동 저장·복원, JSON 내보내기/가져오기와 검증 보고서
