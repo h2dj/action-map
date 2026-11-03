@@ -11,6 +11,7 @@
     "test:watch": "vitest"
   },
   "dependencies": {
+    "@xyflow/react": "^12.12.1",
     "dexie": "^4.4.7",
     "immer": "^11.2.9",
     "react": "^19.3.1",

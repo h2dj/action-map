@@ -13,7 +13,26 @@ export type Dialog =
   | { type: 'relation'; anchorId?: Id }
   | null;
 
+export type MapViewId = 'time' | 'collab' | 'purpose';
+
+const savedView = (): MapViewId => {
+  try {
+    const v = localStorage.getItem('action-map:view');
+    return v === 'collab' || v === 'purpose' ? v : 'time';
+  } catch {
+    return 'time';
+  }
+};
+
 type UiState = {
+  /** 현재 지도 보기 (보는 사람마다 다름: 브라우저에만 기억) */
+  view: MapViewId;
+  timeMode: 'layer' | 'date';
+  /** 협력 보기: 선택한 주체·활동 중심으로 펼치기 */
+  collabFocus: boolean;
+  collabContribution: '' | 'time' | 'money' | 'space' | 'knowledge' | 'network';
+  setView: (v: MapViewId) => void;
+  setOptions: (o: Partial<Pick<UiState, 'timeMode' | 'collabFocus' | 'collabContribution'>>) => void;
   selection: Selection;
   /** 방금 만든 대상: 상세 패널에서 이름 입력란에 바로 초점을 준다 */
   justCreated?: Id;
@@ -25,6 +44,19 @@ type UiState = {
 };
 
 export const useUi = create<UiState>()((set) => ({
+  view: savedView(),
+  timeMode: 'layer',
+  collabFocus: false,
+  collabContribution: '',
+  setView: (view) => {
+    try {
+      localStorage.setItem('action-map:view', view);
+    } catch {
+      /* 저장 못 해도 동작에는 지장 없음 */
+    }
+    set({ view });
+  },
+  setOptions: (o) => set(o),
   selection: null,
   notice: null,
   dialog: null,

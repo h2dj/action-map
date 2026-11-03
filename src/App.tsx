@@ -3,6 +3,7 @@ import { mapStore } from './store/mapStore';
 import { DeleteDialog } from './ui/DeleteDialog';
 import { EntityDetail } from './ui/EntityDetail';
 import { EntityList } from './ui/EntityList';
+import { MapView } from './ui/MapView';
 import { Overview } from './ui/Overview';
 import { RelationDialog } from './ui/RelationDialog';
 import { RelationEditor } from './ui/RelationEditor';
@@ -77,7 +78,9 @@ export function App({ startupWarning }: { startupWarning?: string }) {
       <div className="layout">
         <EntityList />
         <main className="canvas">
-          <Overview />
+          <Overview>
+            <MapView />
+          </Overview>
         </main>
         <aside className="panel" aria-label="상세 편집">
           {selection?.kind === 'entity' && <EntityDetail key={selection.id} id={selection.id} />}

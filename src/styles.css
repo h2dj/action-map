@@ -13,6 +13,13 @@
   --danger: #b3261e;
   --warn: #8a5a00;
   --focus: #2563eb;
+  --edge-link: #2f7d66;
+  --edge-role: #3d6fb4;
+  --edge-contribution: #6b5aa6;
+  --edge-enabling: #a8603a;
+  --edge-factor: #c0623f;
+  --edge-actor: #7a8794;
+  --base-soft: #fdf1e8;
   color-scheme: light;
 }
 @media (prefers-color-scheme: dark) {
@@ -31,6 +38,13 @@
     --danger: #ff8a80;
     --warn: #f0c060;
     --focus: #7aa7ff;
+    --edge-link: #5cc3a0;
+    --edge-role: #7aa7ff;
+    --edge-contribution: #a99ae0;
+    --edge-enabling: #e0a07a;
+    --edge-factor: #f08a66;
+    --edge-actor: #9aa7b4;
+    --base-soft: #3a2a20;
     color-scheme: dark;
   }
 }
@@ -112,7 +126,8 @@ small, .hint, .meta { color: var(--muted); }
 .entity-list, .panel { overflow-y: auto; background: var(--surface); }
 .entity-list { border-right: 1px solid var(--border); padding: 8px; }
 .panel { border-left: 1px solid var(--border); padding: 12px 16px; }
-.canvas { overflow: auto; padding: 16px; }
+.canvas { overflow: hidden; display: flex; flex-direction: column; min-height: 0; }
+.canvas > .empty-state { padding: 16px; }
 
 /* 목록 */
 .search { margin-bottom: 8px; }
@@ -211,9 +226,66 @@ fieldset.field { border: 1px solid var(--border); border-radius: 8px; padding: 8
 }
 @media (max-width: 640px) {
   .layout { display: flex; flex-direction: column; overflow-y: auto; }
+  .canvas { min-height: 70vh; }
+  .view-options { margin-left: 0; }
   .entity-list, .panel { overflow: visible; border: none; }
   .canvas { overflow-x: auto; }
   .toolbar { margin-left: 0; }
   .row { grid-template-columns: 1fr; }
   .contribution-row { grid-template-columns: 1fr 1fr; }
 }
+
+/* 지도 보기 */
+.mapview { flex: 1; display: flex; flex-direction: column; min-height: 0; }
+.view-bar { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 16px; padding: 8px 12px; border-bottom: 1px solid var(--border); background: var(--surface); }
+.tabs { display: flex; gap: 4px; }
+.tabs [role='tab'] { border-radius: 999px; padding: 4px 14px; }
+.tabs [role='tab'].active { background: var(--accent); border-color: var(--accent); color: #fff; }
+.view-question { margin: 0; color: var(--muted); font-size: 13px; }
+.view-options { display: flex; gap: 10px; align-items: center; margin-left: auto; flex-wrap: wrap; font-size: 13px; }
+.view-options select { width: auto; }
+.flow { flex: 1; min-height: 360px; position: relative; }
+.flow .react-flow { background: var(--bg); }
+.legend { display: flex; flex-wrap: wrap; gap: 4px 16px; padding: 6px 12px; font-size: 12px; color: var(--muted); border-top: 1px solid var(--border); background: var(--surface); }
+.legend .note { flex-basis: 100%; }
+.ln { display: inline-block; width: 26px; vertical-align: middle; border-top: 2px solid var(--muted); margin-right: 2px; }
+.ln.dashed { border-top-style: dashed; }
+.ln.thin { border-top-width: 1px; }
+.ln.mid { border-top-width: 2px; }
+.ln.thick { border-top-width: 3px; }
+.ln.factor { border-top-color: var(--edge-factor); }
+
+.vnode {
+  position: relative; display: flex; flex-direction: column; justify-content: center; gap: 2px;
+  padding: 6px 12px 6px 14px; border-radius: 10px; background: var(--surface);
+  border: 1.5px solid var(--border); border-left: 5px solid var(--muted);
+  box-shadow: 0 1px 2px rgb(0 0 0 / 0.06); cursor: pointer; overflow: hidden; color: var(--text);
+}
+.vnode-title { font-weight: 600; font-size: 14px; line-height: 1.25; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.vnode-sub { font-size: 11.5px; color: var(--muted); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.vnode.tone-past { border-left-color: #5b6f8a; }
+.vnode.tone-present { border-left-color: var(--accent); }
+.vnode.tone-future { border-left-color: var(--purple); }
+.vnode.tone-actor { border-left-color: var(--edge-role); }
+.vnode.tone-change { border-left-color: var(--accent); background: var(--accent-soft); }
+.vnode.tone-purpose { border-left-color: var(--purple); background: var(--purple-soft); }
+.vnode.tone-base, .vnode.tone-factor { border-left-color: var(--edge-factor); background: var(--base-soft); }
+.vnode.tentative { border-style: dashed; border-left-style: solid; }
+.vnode.selected { box-shadow: 0 0 0 3px var(--focus); }
+.vnode.neighbor { border-color: var(--text); }
+.vnode.dim { opacity: 0.35; }
+.vnode-toggle { position: absolute; right: 6px; bottom: 4px; font-size: 11px; padding: 0 6px; border-radius: 999px; }
+.vnode .react-flow__handle { opacity: 0; width: 6px; height: 6px; min-width: 0; min-height: 0; border: none; }
+
+.vlane { border-radius: 14px; padding: 10px 14px; pointer-events: none; }
+.vlane-title { font-weight: 700; font-size: 15px; color: var(--text); }
+.vlane-sub { font-size: 12px; color: var(--muted); }
+.vlane.tone-past { background: var(--past-soft); }
+.vlane.tone-present { background: color-mix(in srgb, var(--accent-soft) 70%, transparent); }
+.vlane.tone-future { background: var(--purple-soft); }
+.vlane.tone-actor { background: color-mix(in srgb, var(--edge-role) 10%, transparent); }
+.vlane.tone-change { background: color-mix(in srgb, var(--accent-soft) 60%, transparent); }
+.vlane.tone-purpose { background: var(--purple-soft); }
+.vlane.tone-base { background: var(--base-soft); }
+.react-flow__node-lane { pointer-events: none !important; }
+.react-flow__edge-textbg { rx: 4; }
