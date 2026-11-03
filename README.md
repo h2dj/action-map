@@ -9,7 +9,8 @@
 
 ```bash
 npm install
-npm test        # 단위 테스트
+npm test          # 단위 테스트
+npm run test:e2e  # 브라우저 시나리오 테스트 (Playwright)
 npm run dev     # 개발 서버
 npm run build   # 타입 검사 + 빌드
 ```
