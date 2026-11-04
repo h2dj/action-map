@@ -139,3 +139,47 @@ describe('스키마 v2 이전', () => {
     expect(MapDocument.parse(migrate(structuredClone(doc)))).toEqual(doc);
   });
 });
+
+import { findLoopCandidates } from '../../src/domain/loops';
+
+describe('순환 후보 찾기', () => {
+  it('저장되지 않은 닫힌 경로만 후보로 낸다', () => {
+    const doc = buildSampleDocument();
+    // 예시의 세 순환은 이미 저장되어 있다
+    expect(findLoopCandidates(doc).candidates).toEqual([]);
+    delete doc.loops.L_B1;
+    const { candidates } = findLoopCandidates(doc);
+    expect(candidates).toHaveLength(1);
+    expect(candidates[0].analysis.kind).toBe('B');
+    expect(new Set(candidates[0].factorIds)).toEqual(new Set(['F04', 'F07', 'F02']));
+  });
+
+  it('같은 순환을 시작점만 바꿔 중복으로 내지 않고, 개수 한도를 지킨다', () => {
+    const doc = buildSampleDocument();
+    doc.loops = {};
+    const { candidates } = findLoopCandidates(doc);
+    expect(candidates).toHaveLength(3);
+    // 완전 그래프 6개 요인: 순환이 매우 많으므로 한도에서 멈춘다
+    const dense = buildSampleDocument();
+    dense.loops = {};
+    const fs = ['F01', 'F02', 'F03', 'F04', 'F05', 'F06'];
+    let n = 0;
+    for (const a of fs)
+      for (const b of fs) {
+        if (a === b) continue;
+        const id = `X${n++}`;
+        dense.relations[id] = { id, kind: 'influence', from: a, to: b, status: 'active', evidence: 'hypothesis', influence: { sign: '+' } };
+      }
+    const r = findLoopCandidates(dense, { maxResults: 20 });
+    expect(r.candidates.length).toBeLessThanOrEqual(20);
+    expect(r.truncated).toBe(true);
+  });
+
+  it('부호가 미정인 경로도 후보로 내되 판정 보류로 표시한다', () => {
+    const doc = buildSampleDocument();
+    doc.loops = {};
+    updateRelation(doc, 'R17', { influence: { sign: '?' } });
+    const r2 = findLoopCandidates(doc).candidates.find((c) => c.factorIds.includes('F06'))!;
+    expect(r2.analysis.kind).toBe('undetermined');
+  });
+});

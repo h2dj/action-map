@@ -2,6 +2,7 @@ import { create } from 'zustand';
 import { DomainError } from '../domain/ops';
 import type { Id, MapDocument } from '../domain/schema';
 import type { Issue } from '../domain/validate';
+import type { AsOf } from '../views/asOf';
 import { mapStore } from '../store/mapStore';
 
 export type Selection = { kind: 'entity'; id: Id } | { kind: 'relation'; id: Id } | { kind: 'loop'; id: Id } | null;
@@ -12,6 +13,8 @@ export type Dialog =
   | { type: 'delete'; id: Id }
   | { type: 'relation'; anchorId?: Id }
   | { type: 'loop'; startId?: Id }
+  | { type: 'loopCandidates' }
+  | { type: 'tableImport' }
   | null;
 
 export type MapViewId = 'time' | 'collab' | 'purpose' | 'loop';
@@ -34,8 +37,10 @@ type UiState = {
   collabContribution: '' | 'time' | 'money' | 'space' | 'knowledge' | 'network';
   /** 순환 보기: 요인과 연결된 활동도 보기 */
   loopShowLinked: boolean;
+  /** 과거 시점 조회: 이 시점에 유효했던 활동·관계만 보기 */
+  asOf?: AsOf;
   setView: (v: MapViewId) => void;
-  setOptions: (o: Partial<Pick<UiState, 'timeMode' | 'collabFocus' | 'collabContribution' | 'loopShowLinked'>>) => void;
+  setOptions: (o: Partial<Pick<UiState, 'timeMode' | 'collabFocus' | 'collabContribution' | 'loopShowLinked' | 'asOf'>>) => void;
   selection: Selection;
   /** 방금 만든 대상: 상세 패널에서 이름 입력란에 바로 초점을 준다 */
   justCreated?: Id;
