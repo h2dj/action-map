@@ -175,3 +175,59 @@ export function deleteReview(doc: MapDocument, id: Id): void {
   if (!doc.reviews[id]) throw new DomainError('검토 기록을 찾을 수 없습니다.');
   delete doc.reviews[id];
 }
+
+// ── 순환 후보 찾기 (3단계) ───────────────────────────────────────────────────
+// 영향 관계 그래프에서 같은 요인을 두 번 지나지 않는 닫힌 경로를 찾아 후보로 제안한다.
+// 저장은 사용자가 고른다. 후보가 있다는 것이 그 순환이 실제로 작동한다는 뜻은 아니다.
+
+export type LoopCandidate = { factorIds: Id[]; analysis: LoopAnalysis };
+
+export function findLoopCandidates(
+  doc: MapDocument,
+  opts: { maxLength?: number; maxResults?: number } = {},
+): { candidates: LoopCandidate[]; truncated: boolean } {
+  const maxLength = opts.maxLength ?? 8;
+  const maxResults = opts.maxResults ?? 50;
+  const factors = Object.keys(doc.factors).sort();
+  const index = new Map(factors.map((f, i) => [f, i]));
+  const out = new Map<Id, Id[]>();
+  for (const r of Object.values(doc.relations))
+    if (r.kind === 'influence' && index.has(r.from) && index.has(r.to) && r.from !== r.to)
+      out.set(r.from, [...new Set([...(out.get(r.from) ?? []), r.to])]);
+
+  const cycles: Id[][] = [];
+  let truncated = false;
+  // 시작 요인보다 순번이 큰 요인만 지나게 해 같은 순환을 한 번만 찾는다
+  for (const start of factors) {
+    const s = index.get(start)!;
+    const path: Id[] = [start];
+    const onPath = new Set<Id>([start]);
+    const dfs = (cur: Id): boolean => {
+      for (const next of out.get(cur) ?? []) {
+        if (next === start && path.length >= 2) {
+          cycles.push([...path]);
+          if (cycles.length >= maxResults) return true;
+          continue;
+        }
+        if (onPath.has(next) || index.get(next)! <= s || path.length >= maxLength) continue;
+        path.push(next);
+        onPath.add(next);
+        if (dfs(next)) return true;
+        path.pop();
+        onPath.delete(next);
+      }
+      return false;
+    };
+    if (dfs(start)) {
+      truncated = true;
+      break;
+    }
+  }
+
+  const saved = Object.values(doc.loops).map((l) => l.factorIds);
+  const candidates = cycles
+    .filter((c) => !saved.some((s) => sameCycle(s, c)))
+    .map((factorIds) => ({ factorIds, analysis: analyzeLoop(doc, factorIds) }))
+    .sort((a, b) => a.factorIds.length - b.factorIds.length);
+  return { candidates, truncated };
+}

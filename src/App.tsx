@@ -3,7 +3,9 @@ import { mapStore } from './store/mapStore';
 import { DeleteDialog } from './ui/DeleteDialog';
 import { EntityDetail } from './ui/EntityDetail';
 import { EntityList } from './ui/EntityList';
+import { LoopCandidatesDialog } from './ui/LoopCandidatesDialog';
 import { LoopDialog } from './ui/LoopDialog';
+import { TableImportDialog } from './ui/TableImportDialog';
 import { LoopEditor } from './ui/LoopEditor';
 import { MapView } from './ui/MapView';
 import { Overview } from './ui/Overview';
@@ -94,6 +96,8 @@ export function App({ startupWarning }: { startupWarning?: string }) {
       {dialog?.type === 'delete' && <DeleteDialog id={dialog.id} />}
       {dialog?.type === 'relation' && <RelationDialog anchorId={dialog.anchorId} />}
       {dialog?.type === 'loop' && <LoopDialog startId={dialog.startId} />}
+      {dialog?.type === 'loopCandidates' && <LoopCandidatesDialog />}
+      {dialog?.type === 'tableImport' && <TableImportDialog />}
     </div>
   );
 }

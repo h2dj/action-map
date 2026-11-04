@@ -31,6 +31,7 @@ import { downloadDataUrl } from '../runtime';
 import { mapStore, useMap } from '../store/mapStore';
 import { projectCollab } from '../views/collabView';
 import { loopRelationIds, projectLoop } from '../views/loopView';
+import { filterProjectionAsOf, formatAsOf, parseAsOf } from '../views/asOf';
 import { chooseSides, filterEdges, nearestInDirection, searchNodes, type Direction, type Side } from '../views/interact';
 import { emptyView, type Projection, type VEdge, type VNode } from '../views/model';
 import { projectPurpose } from '../views/purposeView';
@@ -175,6 +176,9 @@ function MapViewInner() {
   const collabFocus = useUi((s) => s.collabFocus);
   const collabContribution = useUi((s) => s.collabContribution);
   const loopShowLinked = useUi((s) => s.loopShowLinked);
+  const asOf = useUi((s) => s.asOf);
+  const [asOfText, setAsOfText] = useState(asOf ? `${asOf.y}${asOf.m ? `-${String(asOf.m).padStart(2, '0')}` : ''}` : '');
+  const [asOfError, setAsOfError] = useState(false);
   const open = useUi((s) => s.open);
   const opts: Options = { timeMode, collabFocus, collabContribution, loopShowLinked };
   const selectedEntity = selection?.kind === 'entity' ? selection.id : undefined;
@@ -189,10 +193,10 @@ function MapViewInner() {
   const [minEvidence, setMinEvidence] = useState<Evidence>('hypothesis');
   const [allLabels, setAllLabels] = useState(false);
 
-  const projection = useMemo(
-    () => project(doc, view, opts, selectedEntity),
-    [doc, view, timeMode, collabFocus, collabContribution, loopShowLinked, selectedEntity],
-  );
+  const projection = useMemo(() => {
+    const p = project(doc, view, opts, selectedEntity);
+    return asOf ? filterProjectionAsOf(doc, p, asOf) : p;
+  }, [doc, view, timeMode, collabFocus, collabContribution, loopShowLinked, selectedEntity, asOf]);
   const visibleEdges = useMemo(
     () => filterEdges(projection.edges, { status: statusFilter, minEvidence }),
     [projection, statusFilter, minEvidence],
@@ -378,6 +382,38 @@ function MapViewInner() {
               {matches.size}개
             </span>
           )}
+          <label className="as-of" title="기록된 기간으로 그 시점의 모습을 추정합니다">
+            기준 시점{' '}
+            <input
+              type="text"
+              inputMode="numeric"
+              placeholder="현재"
+              aria-label="기준 시점 (연-월)"
+              aria-invalid={asOfError}
+              value={asOfText}
+              onChange={(e) => setAsOfText(e.target.value)}
+              onBlur={() => {
+                const t = asOfText.trim();
+                const at = t ? parseAsOf(t) : undefined;
+                setAsOfError(!!t && !at);
+                if (!t || at) setOptions({ asOf: at });
+              }}
+              onKeyDown={(e) => e.key === 'Enter' && (e.target as HTMLInputElement).blur()}
+            />
+          </label>
+          {asOf && (
+            <button
+              className="as-of-clear"
+              aria-label={`${formatAsOf(asOf)} 기준 해제`}
+              onClick={() => {
+                setAsOfText('');
+                setAsOfError(false);
+                setOptions({ asOf: undefined });
+              }}
+            >
+              {formatAsOf(asOf)} ×
+            </button>
+          )}
           {view === 'time' && (
             <label>
               배치{' '}
@@ -418,6 +454,7 @@ function MapViewInner() {
               >
                 + 순환 구성
               </button>
+              <button onClick={() => open({ type: 'loopCandidates' })}>순환 후보 찾기</button>
             </>
           )}
           <details className="menu view-menu">

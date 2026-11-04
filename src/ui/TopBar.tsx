@@ -175,6 +175,7 @@ export function TopBar() {
               <input type="checkbox" checked={includePrivate} onChange={(e) => setIncludePrivate(e.target.checked)} /> 비공개 메모 포함
             </label>
             <button onClick={() => (closeMenu(), jsonInput.current?.click())}>가져오기 (JSON)</button>
+            <button onClick={() => (closeMenu(), open({ type: 'tableImport' }))}>표 가져오기 (CSV·노션·스프레드시트)</button>
             <hr />
             <button
               onClick={() => {
