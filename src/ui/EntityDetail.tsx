@@ -6,7 +6,9 @@ import { timeLayerOf } from '../domain/time';
 import { validateActivity } from '../domain/validate';
 import { activityStatusLabel, evidenceLabel, relationStatusLabel } from '../domain/vocab';
 import { useMap } from '../store/mapStore';
+import { analyzeLoop, loopKindLabel } from '../domain/loops';
 import { CheckField, DateRangeField, SelectField, TextField } from './fields';
+import { ReviewNotes } from './ReviewNotes';
 import { nameOf, relationTitle, typeLabelOf } from './labels';
 import { tryRun, useUi } from './uiStore';
 
@@ -73,6 +75,7 @@ export function EntityDetail({ id }: { id: Id }) {
             value={doc.factors[id].increaseMeans}
             onCommit={(v) => patch('증가의 의미 변경', { increaseMeans: v || undefined })}
           />
+          <p className="hint">증가의 의미를 적어 두면 영향 방향(+/−)을 “늘면 늘고, 늘면 준다”는 문장으로 읽을 수 있습니다.</p>
           <CheckField
             label="여러 활동이 함께 쓰는 공통 기반"
             checked={!!doc.factors[id].sharedBase}
@@ -86,6 +89,8 @@ export function EntityDetail({ id }: { id: Id }) {
       )}
 
       <RelationList doc={doc} id={id} />
+      {type === 'factor' && <FactorLoops doc={doc} id={id} />}
+      <ReviewNotes targetId={id} />
     </div>
   );
 }
@@ -157,6 +162,29 @@ function ActivityFields({ doc, id }: { doc: MapDocument; id: Id }) {
         </div>
       )}
     </>
+  );
+}
+
+function FactorLoops({ doc, id }: { doc: MapDocument; id: Id }) {
+  const select = useUi((s) => s.select);
+  const open = useUi((s) => s.open);
+  const loops = Object.values(doc.loops).filter((l) => l.factorIds.includes(id));
+  return (
+    <section className="relations" aria-label="이 요인이 든 순환">
+      <header>
+        <h3>순환 {loops.length}</h3>
+        <button onClick={() => open({ type: 'loop', startId: id })}>+ 여기서 순환 구성</button>
+      </header>
+      <ul className="chips">
+        {loops.map((l) => (
+          <li key={l.id}>
+            <button className="chip" onClick={() => select({ kind: 'loop', id: l.id })}>
+              {l.name} <small>({loopKindLabel[analyzeLoop(doc, l.factorIds).kind]})</small>
+            </button>
+          </li>
+        ))}
+      </ul>
+    </section>
   );
 }
 

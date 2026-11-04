@@ -1,12 +1,13 @@
 import type { EntityType, Id, MapDocument } from './schema';
 
-const prefix: Record<EntityType | 'relation' | 'review' | 'workspace', string> = {
+const prefix: Record<EntityType | 'relation' | 'review' | 'workspace' | 'loop', string> = {
   actor: 'act',
   activity: 'atv',
   outcome: 'out',
   factor: 'fac',
   relation: 'rel',
   review: 'rev',
+  loop: 'loop',
   workspace: 'ws',
 };
 

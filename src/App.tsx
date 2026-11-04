@@ -3,6 +3,8 @@ import { mapStore } from './store/mapStore';
 import { DeleteDialog } from './ui/DeleteDialog';
 import { EntityDetail } from './ui/EntityDetail';
 import { EntityList } from './ui/EntityList';
+import { LoopDialog } from './ui/LoopDialog';
+import { LoopEditor } from './ui/LoopEditor';
 import { MapView } from './ui/MapView';
 import { Overview } from './ui/Overview';
 import { RelationDialog } from './ui/RelationDialog';
@@ -85,11 +87,13 @@ export function App({ startupWarning }: { startupWarning?: string }) {
         <aside className="panel" aria-label="상세 편집">
           {selection?.kind === 'entity' && <EntityDetail key={selection.id} id={selection.id} />}
           {selection?.kind === 'relation' && <RelationEditor key={selection.id} id={selection.id} />}
+          {selection?.kind === 'loop' && <LoopEditor key={selection.id} id={selection.id} />}
           {!selection && <p className="empty">목록이나 카드에서 대상을 고르면 여기에서 편집합니다.</p>}
         </aside>
       </div>
       {dialog?.type === 'delete' && <DeleteDialog id={dialog.id} />}
       {dialog?.type === 'relation' && <RelationDialog anchorId={dialog.anchorId} />}
+      {dialog?.type === 'loop' && <LoopDialog startId={dialog.startId} />}
     </div>
   );
 }

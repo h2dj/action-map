@@ -3,6 +3,7 @@
  */
 import { useMemo, useState } from 'react';
 import { entityTypeOf } from '../domain/ids';
+import { influenceSentence } from '../domain/loops';
 import { addRelation, type NewRelation } from '../domain/ops';
 import { ActivityLinkSubtype, type EntityType, type Id, type InfluenceSign, type RelationKind } from '../domain/schema';
 import { activityLinkLabel, influenceSignLabel, relationEndpoints, relationKindLabel } from '../domain/vocab';
@@ -152,6 +153,11 @@ export function RelationDialog({ anchorId }: { anchorId?: Id }) {
               ))}
             </select>
           </label>
+        )}
+        {(option?.kind === 'influence' || option?.kind === 'factorLink') && anchor && other && sign && (
+          <p className="sentence" role="status">
+            {option.anchorIsFrom ? influenceSentence(doc, anchor, other, sign) : influenceSentence(doc, other, anchor, sign)}
+          </p>
         )}
 
         {option && (

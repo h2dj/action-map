@@ -106,3 +106,19 @@ describe('SysMap 내보내기와 왕복', () => {
     expect(hasErrors(validateDocument(doc))).toBe(false);
   });
 });
+
+describe('SysMap 내보내기: 순환 라벨', () => {
+  it('판정된 순환을 루프 라벨(R/B)로 내보내고, 다시 가져와도 기록은 늘지 않는다', () => {
+    const doc = buildSampleDocument();
+    const sm = toSysmap(doc);
+    const loops = sm.nodes.filter((n) => n.shape === 'loop');
+    expect(loops.map((n) => [n.label, n.loopType]).sort()).toEqual([
+      ['B1 성장의 한계', 'B'],
+      ['R1 과부하', 'R'],
+      ['R2 현장 배움', 'R'],
+    ]);
+    const plan = planSysmapImport(doc, sm);
+    expect(plan.newFactors).toEqual([]);
+    expect(plan.newRelations).toEqual([]);
+  });
+});

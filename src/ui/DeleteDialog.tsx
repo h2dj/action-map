@@ -58,6 +58,11 @@ export function DeleteDialog({ id }: { id: Id }) {
           })}
         </ul>
       )}
+      {impact.loops.length > 0 && (
+        <p>
+          이 요인이 든 순환 {impact.loops.length}개도 함께 사라집니다: {impact.loops.map((l) => doc.loops[l]?.name).join(', ')}
+        </p>
+      )}
       {impact.reviews.length > 0 && <p>검토 기록 {impact.reviews.length}개에서 이 대상의 참조가 빠집니다(기록은 남습니다).</p>}
       <p className="hint">삭제 후에도 실행 취소로 되돌릴 수 있습니다.</p>
       <div className="actions">

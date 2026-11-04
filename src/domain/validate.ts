@@ -82,7 +82,7 @@ export function validateActivity(doc: MapDocument, a: Activity): Issue[] {
 /** 문서 전체 무결성 검사. 가져오기와 저장 전 확인에 쓴다. */
 export function validateDocument(doc: MapDocument): Issue[] {
   const issues: Issue[] = [];
-  const collections = [doc.actors, doc.activities, doc.outcomes, doc.factors, doc.relations, doc.reviews] as const;
+  const collections = [doc.actors, doc.activities, doc.outcomes, doc.factors, doc.relations, doc.reviews, doc.loops] as const;
   const seen = new Set<Id>();
   for (const col of collections) {
     for (const [key, item] of Object.entries(col)) {
@@ -93,9 +93,15 @@ export function validateDocument(doc: MapDocument): Issue[] {
   }
   for (const a of Object.values(doc.activities)) issues.push(...validateActivity(doc, a));
   for (const r of Object.values(doc.relations)) issues.push(...validateRelation(doc, r));
+  for (const l of Object.values(doc.loops)) {
+    if (new Set(l.factorIds).size !== l.factorIds.length)
+      issues.push(err('loop.duplicateFactor', `순환 “${l.name}”에 같은 요인이 두 번 들어 있습니다.`, l.id));
+    for (const f of l.factorIds)
+      if (!doc.factors[f]) issues.push(err('loop.missingFactor', `순환 “${l.name}”의 요인(${f})이 없습니다.`, l.id));
+  }
   for (const rv of Object.values(doc.reviews))
     for (const t of rv.targetIds)
-      if (!entityTypeOf(doc, t) && !doc.relations[t])
+      if (!entityTypeOf(doc, t) && !doc.relations[t] && !doc.loops[t])
         issues.push(warn('review.missingTarget', `검토 기록이 없는 대상(${t})을 가리킵니다.`, rv.id));
   return issues;
 }

@@ -38,6 +38,7 @@ export function createEmptyDocument(name: string, now = new Date().toISOString()
     relations: {},
     views: {},
     reviews: {},
+    loops: {},
   };
 }
 
@@ -76,7 +77,8 @@ export function addFactor(doc: MapDocument, input: NewInput<Factor>): Id {
 }
 
 function assertFreeId(doc: MapDocument, id: Id) {
-  if (entityTypeOf(doc, id) || doc.relations[id]) throw new DomainError(`이미 사용 중인 ID입니다: ${id}`);
+  if (entityTypeOf(doc, id) || doc.relations[id] || doc.loops[id] || doc.reviews[id])
+    throw new DomainError(`이미 사용 중인 ID입니다: ${id}`);
 }
 
 // ── 엔티티 수정: ID는 바뀌지 않으므로 이름을 바꿔도 연결이 유지된다 ─────────────
@@ -178,6 +180,8 @@ export type DeleteImpact = {
   descendantRelations: Id[];
   /** 대상을 가리키는 검토 기록 */
   reviews: Id[];
+  /** 이 요인이 들어 있어 함께 사라지는 순환 */
+  loops: Id[];
 };
 
 export function deleteImpact(doc: MapDocument, id: Id): DeleteImpact {
@@ -193,7 +197,10 @@ export function deleteImpact(doc: MapDocument, id: Id): DeleteImpact {
   const reviews = Object.values(doc.reviews)
     .filter((rv) => rv.targetIds.includes(id))
     .map((rv) => rv.id);
-  return { target: id, descendants, relations, descendantRelations, reviews };
+  const loops = Object.values(doc.loops)
+    .filter((l) => l.factorIds.includes(id))
+    .map((l) => l.id);
+  return { target: id, descendants, relations, descendantRelations, reviews, loops };
 }
 
 export type ChildMode = 'cascade' | 'detach';
@@ -208,7 +215,8 @@ export function deleteEntity(doc: MapDocument, id: Id, mode?: ChildMode): Delete
   if (impact.descendants.length && !mode)
     throw new DomainError('하위 활동이 있습니다. 함께 삭제할지, 상위 연결만 해제할지 선택해야 합니다.');
 
-  const removed = new Set<Id>([id, ...impact.relations]);
+  const removed = new Set<Id>([id, ...impact.relations, ...impact.loops]);
+  for (const l of impact.loops) delete doc.loops[l];
   if (mode === 'cascade') {
     for (const d of impact.descendants) {
       delete doc.activities[d];

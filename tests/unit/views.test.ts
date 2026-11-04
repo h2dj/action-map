@@ -136,3 +136,39 @@ describe('목적 보기', () => {
     expect(entity(p.nodes, 'A02')).toMatchObject({ x: 999, y: 555 });
   });
 });
+
+import { loopRelationIds, projectLoop } from '../../src/views/loopView';
+
+describe('순환 보기', () => {
+  it('요인과 영향(부호·지연), 순환 라벨을 그린다', () => {
+    const doc = buildSampleDocument();
+    const p = projectLoop(doc, undefined);
+    expect(ids(p.nodes).sort()).toEqual(['F01', 'F02', 'F03', 'F04', 'F05', 'F06', 'F07']);
+    const r15 = p.edges.find((e) => e.relationId === 'R15')!;
+    expect(r15).toMatchObject({ tone: 'influence', sign: '-', delayed: true, label: '− ‖' });
+    const loops = p.nodes.filter((n) => n.kind === 'loop');
+    expect(loops.map((n) => n.label).sort()).toEqual(['↺ B1 성장의 한계', '↻ R1 과부하', '↻ R2 현장 배움']);
+    // 활동 간 연결·기여는 그리지 않는다
+    expect(p.edges.every((e) => e.tone === 'influence')).toBe(true);
+  });
+
+  it('활동 함께 보기를 켜면 요인과 연결된 활동이 나타난다', () => {
+    const p = projectLoop(buildSampleDocument(), undefined, { showLinked: true });
+    expect(ids(p.nodes)).toEqual(expect.arrayContaining(['A02', 'A07']));
+    expect(p.edges.some((e) => e.relationId === 'R22' && e.tone === 'factor')).toBe(true);
+  });
+
+  it('SysMap 등에서 저장된 위치를 쓰고, 순환 라벨은 그 가운데에 놓인다', () => {
+    const doc = buildSampleDocument();
+    const view = { ...emptyView('loop'), positions: { F03: { x: 0, y: 0 }, F04: { x: 300, y: 0 }, F06: { x: 150, y: 300 } } };
+    const p = projectLoop(doc, view);
+    expect(entity(p.nodes, 'F04')).toMatchObject({ x: 300, y: 0 });
+    const r2 = p.nodes.find((n) => n.id === 'L_R2')!;
+    const cx = r2.x + r2.w / 2;
+    expect(Math.round(cx)).toBe(Math.round((0 + 300 + 150) / 3 + 95)); // 요인 폭의 절반(95)만큼 오른쪽
+  });
+
+  it('순환에 속한 영향 관계를 찾는다', () => {
+    expect(loopRelationIds(buildSampleDocument(), 'L_B1').sort()).toEqual(['R19', 'R20', 'R21']);
+  });
+});

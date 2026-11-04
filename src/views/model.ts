@@ -24,7 +24,9 @@ export type VNode =
       /** 예정만 있고 실제 기간이 없는 등, 점선 테두리로 표시 */
       tentative?: boolean;
     }
-  | { kind: 'lane'; id: string; label: string; sub?: string; tone: NodeTone; x: number; y: number; w: number; h: number };
+  | { kind: 'lane'; id: string; label: string; sub?: string; tone: NodeTone; x: number; y: number; w: number; h: number }
+  /** 순환 라벨 (R1 ↻ / B1 ↺): 순환에 속한 요인들의 가운데에 놓는다 */
+  | { kind: 'loop'; id: Id; label: string; loopKind: 'R' | 'B' | 'undetermined' | 'broken'; x: number; y: number; w: number; h: number };
 
 export type VEdge = {
   id: string;
@@ -35,7 +37,10 @@ export type VEdge = {
   status: RelationStatus;
   evidence: Evidence;
   /** 색 구분용 */
-  tone: 'link' | 'role' | 'contribution' | 'enabling' | 'factor' | 'actor';
+  tone: 'link' | 'role' | 'contribution' | 'enabling' | 'factor' | 'actor' | 'influence';
+  /** 영향 방향 (순환 보기) */
+  sign?: '+' | '-' | '?';
+  delayed?: boolean;
   /** 접힌 하위 활동의 관계를 상위 활동으로 모아 그린 선 */
   aggregated?: boolean;
   directed: boolean;
@@ -52,7 +57,7 @@ export const emptyView = (viewId: ViewId): ViewState => ({ viewId, positions: {}
 export function applySavedPositions(nodes: VNode[], view: ViewState | undefined): VNode[] {
   if (!view) return nodes;
   return nodes.map((n) => {
-    const p = n.kind === 'entity' ? view.positions[n.id] : undefined;
+    const p = n.kind !== 'lane' ? view.positions[n.id] : undefined;
     return p ? { ...n, x: p.x, y: p.y } : n;
   });
 }

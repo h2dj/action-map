@@ -30,6 +30,7 @@ import { contributionKindLabel, evidenceLabel, relationStatusLabel } from '../do
 import { downloadDataUrl } from '../runtime';
 import { mapStore, useMap } from '../store/mapStore';
 import { projectCollab } from '../views/collabView';
+import { loopRelationIds, projectLoop } from '../views/loopView';
 import { chooseSides, filterEdges, nearestInDirection, searchNodes, type Direction, type Side } from '../views/interact';
 import { emptyView, type Projection, type VEdge, type VNode } from '../views/model';
 import { projectPurpose } from '../views/purposeView';
@@ -42,6 +43,7 @@ type EntityData = Extract<VNode, { kind: 'entity' }> & {
   viewId: ViewId;
 };
 type LaneData = Extract<VNode, { kind: 'lane' }>;
+type LoopData = Extract<VNode, { kind: 'loop' }> & { state: '' | 'selected' | 'dim' };
 
 function toggleCollapsed(viewId: ViewId, id: Id) {
   mapStore.getState().runView((d) => {
@@ -94,7 +96,15 @@ const LaneNode = memo(function LaneNode({ data }: NodeProps<Node<LaneData>>) {
   );
 });
 
-const nodeTypes = { entity: EntityNode, lane: LaneNode };
+const LoopNode = memo(function LoopNode({ data }: NodeProps<Node<LoopData>>) {
+  return (
+    <div className={`vloop kind-${data.loopKind} ${data.state}`} style={{ width: data.w, height: data.h }} title="순환 — 눌러서 판정과 구성 보기">
+      {data.label}
+    </div>
+  );
+});
+
+const nodeTypes = { entity: EntityNode, lane: LaneNode, loop: LoopNode };
 
 const toneColor: Record<VEdge['tone'], string> = {
   link: 'var(--edge-link)',
@@ -103,6 +113,7 @@ const toneColor: Record<VEdge['tone'], string> = {
   enabling: 'var(--edge-enabling)',
   factor: 'var(--edge-factor)',
   actor: 'var(--edge-actor)',
+  influence: 'var(--edge-influence)',
 };
 
 function edgeStyle(e: VEdge, state: '' | 'hot' | 'dim') {
@@ -120,6 +131,7 @@ type Options = {
   timeMode: 'layer' | 'date';
   collabFocus: boolean;
   collabContribution: '' | 'time' | 'money' | 'space' | 'knowledge' | 'network';
+  loopShowLinked: boolean;
 };
 
 function project(doc: MapDocument, view: MapViewId, opts: Options, selected?: Id): Projection {
@@ -130,6 +142,7 @@ function project(doc: MapDocument, view: MapViewId, opts: Options, selected?: Id
       focusId: opts.collabFocus && selected && (doc.actors[selected] || doc.activities[selected]) ? selected : undefined,
       contribution: opts.collabContribution || undefined,
     });
+  if (view === 'loop') return projectLoop(doc, vs, { showLinked: opts.loopShowLinked });
   return projectPurpose(doc, vs);
 }
 
@@ -137,6 +150,7 @@ const VIEWS: [MapViewId, string, string][] = [
   ['time', '시간', '어떻게 이어져 왔고, 어디로 이어질까?'],
   ['collab', '협력', '누가 어떤 역할로 참여하고 무엇을 제공할까?'],
   ['purpose', '목적', '어떤 변화와 가치에 기여할까?'],
+  ['loop', '순환', '어떤 영향이 되돌아와 상황을 강화하거나 조절할까?'],
 ];
 
 /** 선 라벨이 이보다 많으면, 선택한 대상 주변의 라벨만 보여 겹침을 줄인다 */
@@ -160,9 +174,12 @@ function MapViewInner() {
   const timeMode = useUi((s) => s.timeMode);
   const collabFocus = useUi((s) => s.collabFocus);
   const collabContribution = useUi((s) => s.collabContribution);
-  const opts: Options = { timeMode, collabFocus, collabContribution };
+  const loopShowLinked = useUi((s) => s.loopShowLinked);
+  const open = useUi((s) => s.open);
+  const opts: Options = { timeMode, collabFocus, collabContribution, loopShowLinked };
   const selectedEntity = selection?.kind === 'entity' ? selection.id : undefined;
   const selectedRelation = selection?.kind === 'relation' ? selection.id : undefined;
+  const selectedLoop = selection?.kind === 'loop' ? selection.id : undefined;
   const dated = hasDates(doc);
   const flow = useReactFlow();
   const flowBox = useRef<HTMLDivElement>(null);
@@ -174,7 +191,7 @@ function MapViewInner() {
 
   const projection = useMemo(
     () => project(doc, view, opts, selectedEntity),
-    [doc, view, timeMode, collabFocus, collabContribution, selectedEntity],
+    [doc, view, timeMode, collabFocus, collabContribution, loopShowLinked, selectedEntity],
   );
   const visibleEdges = useMemo(
     () => filterEdges(projection.edges, { status: statusFilter, minEvidence }),
@@ -195,6 +212,10 @@ function MapViewInner() {
       for (const e of visibleEdges) if (e.source === selectedEntity || e.target === selectedEntity) mark(e);
     }
     if (selectedRelation) for (const e of visibleEdges) if (e.relationId === selectedRelation) mark(e);
+    if (selectedLoop) {
+      const rels = new Set(loopRelationIds(doc, selectedLoop));
+      for (const e of visibleEdges) if (rels.has(e.relationId)) mark(e);
+    }
     const focusing = hot.size > 0;
     const boxes = new Map(projection.nodes.map((n) => [n.id, n]));
     const showAllLabels = allLabels || visibleEdges.length <= LABEL_LIMIT;
@@ -202,13 +223,24 @@ function MapViewInner() {
     const nodes: Node[] = projection.nodes.map((n) =>
       n.kind === 'lane'
         ? { id: n.id, type: 'lane', position: { x: n.x, y: n.y }, data: n, draggable: false, selectable: false, focusable: false, zIndex: -1, width: n.w, height: n.h }
-        : {
+        : n.kind === 'loop'
+          ? {
+              id: n.id,
+              type: 'loop',
+              position: { x: n.x, y: n.y },
+              width: n.w,
+              height: n.h,
+              zIndex: 3,
+              ariaLabel: `순환 ${n.label}`,
+              data: { ...n, state: n.id === selectedLoop ? 'selected' : focusing ? 'dim' : '' } satisfies LoopData,
+            }
+          : {
             id: n.id,
             type: 'entity',
             position: { x: n.x, y: n.y },
             width: n.w,
             height: n.h,
-            ariaLabel: `${n.label}${n.sub ? `, ${n.sub}` : ''}`,
+            ariaLabel: `${n.label}${n.kind === 'entity' && n.sub ? `, ${n.sub}` : ''}`,
             data: {
               ...n,
               viewId: view,
@@ -234,7 +266,10 @@ function MapViewInner() {
         ariaLabel: `${text ?? '연결'}, ${relationStatusLabel[e.status]}, ${evidenceLabel[e.evidence]}`,
         selected: e.relationId === selectedRelation,
         style: edgeStyle(e, state),
-        labelStyle: { fontSize: 11, fill: 'var(--text)' },
+        labelStyle:
+          e.sign && (e.tone === 'influence' || e.tone === 'factor')
+            ? { fontSize: 16, fontWeight: 700, fill: e.sign === '+' ? 'var(--pos)' : e.sign === '-' ? 'var(--neg)' : 'var(--warn)' }
+            : { fontSize: 11, fill: 'var(--text)' },
         labelBgStyle: { fill: 'var(--surface)', opacity: 0.92 },
         labelBgPadding: [4, 2] as [number, number],
         markerEnd: e.directed ? { type: MarkerType.ArrowClosed, color: toneColor[e.tone], width: 16, height: 16 } : undefined,
@@ -243,7 +278,7 @@ function MapViewInner() {
       };
     });
     return { nodes, edges };
-  }, [projection, visibleEdges, matches, selectedEntity, selectedRelation, view, allLabels]);
+  }, [projection, visibleEdges, matches, selectedEntity, selectedRelation, selectedLoop, view, allLabels, doc]);
 
   // 끌기 중 위치는 화면 상태로 들고 있다가, 놓을 때 보기 상태에 저장한다
   const [rfNodes, setRfNodes] = useState<Node[]>(nodes);
@@ -372,6 +407,19 @@ function MapViewInner() {
               </label>
             </>
           )}
+          {view === 'loop' && (
+            <>
+              <label className="check">
+                <input type="checkbox" checked={loopShowLinked} onChange={(e) => setOptions({ loopShowLinked: e.target.checked })} /> 활동 함께 보기
+              </label>
+              <button
+                className="primary"
+                onClick={() => open({ type: 'loop', startId: selectedEntity && doc.factors[selectedEntity] ? selectedEntity : undefined })}
+              >
+                + 순환 구성
+              </button>
+            </>
+          )}
           <details className="menu view-menu">
             <summary>표시</summary>
             <div className="menu-body">
@@ -431,13 +479,16 @@ function MapViewInner() {
           elementsSelectable
           colorMode="system"
           proOptions={{ hideAttribution: true }}
-          onNodeClick={(_, n) => n.type === 'entity' && select({ kind: 'entity', id: n.id })}
+          onNodeClick={(_, n) => {
+            if (n.type === 'entity') select({ kind: 'entity', id: n.id });
+            else if (n.type === 'loop') select({ kind: 'loop', id: n.id });
+          }}
           onEdgeClick={(_, e) => select({ kind: 'relation', id: (e.data as { relationId: Id }).relationId })}
           onPaneClick={() => select(null)}
           onNodeDragStop={(_, __, dragged) =>
             mapStore.getState().runView((d) => {
               const v = (d.views[view] ??= emptyView(view));
-              for (const n of dragged) if (n.type === 'entity') v.positions[n.id] = { x: Math.round(n.position.x), y: Math.round(n.position.y) };
+              for (const n of dragged) if (n.type === 'entity' || n.type === 'loop') v.positions[n.id] = { x: Math.round(n.position.x), y: Math.round(n.position.y) };
             })
           }
         >
@@ -459,6 +510,11 @@ function MapViewInner() {
         {view === 'time' && (
           <span>
             <i className="ln factor" /> 공통 기반 사용·완화
+          </span>
+        )}
+        {view === 'loop' && (
+          <span>
+            <b>+</b> 같은 방향 · <b>−</b> 반대 방향 · <b>?</b> 미정 · <b>‖</b> 지연 · ↻ 강화(R) · ↺ 균형(B)
           </span>
         )}
         <span className="keys">방향키: 가까운 대상으로 이동 · Enter: 이름 편집</span>

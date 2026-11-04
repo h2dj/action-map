@@ -11,12 +11,14 @@
  * - 내보내기: 변화 요인 → 텍스트 노드(공통 기반은 사각형), 요인과 연결된 활동 → 원 노드.
  *   영향·요인 연결 → 극성(+/−)·지연이 있는 연결선. 만들고 싶은 연결은 파선.
  *   노드에 `action-map:<ID>` 태그를 붙여 되돌아올 때 같은 기록으로 찾는다.
+ *   강화·균형이 판정된 순환은 SysMap 루프 라벨(R/B)로 함께 내보낸다.
  * - 가져오기: 태그가 있는 노드는 기존 기록과 연결하고, 없는 노드는 새 변화 요인으로 만든다.
  *   이름이 같다는 이유로 합치지 않는다. 루프 라벨·말풍선은 기록으로 옮기지 않고 알린다.
  *   기존 관계와 이름은 덮어쓰지 않고 차이만 알린다.
  */
 import { z } from 'zod';
 import { newId } from '../domain/ids';
+import { analyzeLoop } from '../domain/loops';
 import { addFactor, addRelation } from '../domain/ops';
 import type { Id, InfluenceSign, MapDocument, Relation } from '../domain/schema';
 import type { Issue } from '../domain/validate';
@@ -125,6 +127,30 @@ export function toSysmap(doc: MapDocument, opts: SysmapExportOptions = {}): Sysm
     color: '',
     tags: [`${TAG_PREFIX}${r.id}`],
   }));
+
+  // 사용자가 구성한 순환은 SysMap의 루프 라벨(R ↻ / B ↺)로 함께 내보낸다
+  for (const l of Object.values(doc.loops)) {
+    const members = nodes.filter((n) => l.factorIds.some((f) => n.id === `n_${f}`));
+    if (!members.length) continue;
+    const kind = analyzeLoop(doc, l.factorIds).kind;
+    if (kind !== 'R' && kind !== 'B') continue; // 판정되지 않은 순환은 라벨을 붙이지 않는다
+    const cx = members.reduce((s, n) => s + n.x + (n.w ?? 0) / 2, 0) / members.length;
+    const cy = members.reduce((s, n) => s + n.y + (n.h ?? 0) / 2, 0) / members.length;
+    nodes.push({
+      id: `n_${l.id}`,
+      shape: 'loop',
+      label: l.name,
+      loopType: kind,
+      x: Math.round(cx - 40),
+      y: Math.round(cy - 15),
+      w: 80,
+      h: 30,
+      fill: 'transparent',
+      stroke: '#1c2128',
+      textColor: '#1c2128',
+      tags: [`${TAG_PREFIX}${l.id}`],
+    });
+  }
 
   return { title: `${doc.workspace.name} — 변화 요인`, nodes, edges };
 }

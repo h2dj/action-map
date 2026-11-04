@@ -1,4 +1,5 @@
 /** 선택한 관계 편집: 상태·근거·기간·역할·기여·영향 (F03, F04) */
+import { influenceSentence } from '../domain/loops';
 import { deleteRelation, updateRelation } from '../domain/ops';
 import type { Contribution, ContributionKind, Evidence, Id, InfluenceSign, Relation, RelationStatus } from '../domain/schema';
 import {
@@ -12,6 +13,7 @@ import {
 import { useMap } from '../store/mapStore';
 import { CheckField, DateRangeField, SelectField, TextField } from './fields';
 import { nameOf, typeLabelOf } from './labels';
+import { ReviewNotes } from './ReviewNotes';
 import { tryRun, useUi } from './uiStore';
 
 export function RelationEditor({ id }: { id: Id }) {
@@ -112,6 +114,14 @@ export function RelationEditor({ id }: { id: Id }) {
             ]}
             onChange={(v) => patch('영향 방향 변경', { influence: v ? { ...r.influence, sign: v } : undefined })}
           />
+          {r.influence && (
+            <p className="sentence" role="status">
+              {influenceSentence(doc, r.from, r.to, r.influence.sign)}
+            </p>
+          )}
+          {doc.factors[r.to] && !doc.factors[r.to].increaseMeans && (
+            <p className="hint">‘{doc.factors[r.to].name}’의 “증가의 의미”를 적어 두면 방향을 판단하기 쉽습니다.</p>
+          )}
           <p className="hint">+는 한쪽이 늘 때 다른 쪽도 느는 방향, −는 반대 방향입니다. 좋고 나쁨의 표시가 아닙니다.</p>
           {r.influence && (
             <>
@@ -133,6 +143,7 @@ export function RelationEditor({ id }: { id: Id }) {
       )}
 
       {canContribute && <ContributionsEditor relation={r} onChange={(c) => patch('기여 내역 변경', { contributions: c.length ? c : undefined })} />}
+      <ReviewNotes targetId={id} />
     </div>
   );
 }

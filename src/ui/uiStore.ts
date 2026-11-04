@@ -4,21 +4,22 @@ import type { Id, MapDocument } from '../domain/schema';
 import type { Issue } from '../domain/validate';
 import { mapStore } from '../store/mapStore';
 
-export type Selection = { kind: 'entity'; id: Id } | { kind: 'relation'; id: Id } | null;
+export type Selection = { kind: 'entity'; id: Id } | { kind: 'relation'; id: Id } | { kind: 'loop'; id: Id } | null;
 
 export type Notice = { level: 'info' | 'error'; text: string; issues?: Issue[] };
 
 export type Dialog =
   | { type: 'delete'; id: Id }
   | { type: 'relation'; anchorId?: Id }
+  | { type: 'loop'; startId?: Id }
   | null;
 
-export type MapViewId = 'time' | 'collab' | 'purpose';
+export type MapViewId = 'time' | 'collab' | 'purpose' | 'loop';
 
 const savedView = (): MapViewId => {
   try {
     const v = localStorage.getItem('action-map:view');
-    return v === 'collab' || v === 'purpose' ? v : 'time';
+    return v === 'collab' || v === 'purpose' || v === 'loop' ? v : 'time';
   } catch {
     return 'time';
   }
@@ -31,8 +32,10 @@ type UiState = {
   /** 협력 보기: 선택한 주체·활동 중심으로 펼치기 */
   collabFocus: boolean;
   collabContribution: '' | 'time' | 'money' | 'space' | 'knowledge' | 'network';
+  /** 순환 보기: 요인과 연결된 활동도 보기 */
+  loopShowLinked: boolean;
   setView: (v: MapViewId) => void;
-  setOptions: (o: Partial<Pick<UiState, 'timeMode' | 'collabFocus' | 'collabContribution'>>) => void;
+  setOptions: (o: Partial<Pick<UiState, 'timeMode' | 'collabFocus' | 'collabContribution' | 'loopShowLinked'>>) => void;
   selection: Selection;
   /** 방금 만든 대상: 상세 패널에서 이름 입력란에 바로 초점을 준다 */
   justCreated?: Id;
@@ -48,6 +51,7 @@ export const useUi = create<UiState>()((set) => ({
   timeMode: 'layer',
   collabFocus: false,
   collabContribution: '',
+  loopShowLinked: false,
   setView: (view) => {
     try {
       localStorage.setItem('action-map:view', view);
@@ -87,6 +91,8 @@ mapStore.subscribe((s) => {
   const exists =
     sel.kind === 'relation'
       ? !!d.relations[sel.id]
-      : !!(d.actors[sel.id] || d.activities[sel.id] || d.outcomes[sel.id] || d.factors[sel.id]);
+      : sel.kind === 'loop'
+        ? !!d.loops[sel.id]
+        : !!(d.actors[sel.id] || d.activities[sel.id] || d.outcomes[sel.id] || d.factors[sel.id]);
   if (!exists) useUi.getState().select(null);
 });

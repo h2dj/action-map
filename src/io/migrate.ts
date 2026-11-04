@@ -6,7 +6,10 @@ export class MigrationError extends Error {}
  * 저장·가져오기 데이터의 스키마 버전을 현재 버전으로 올린다.
  * 버전이 오를 때마다 `migrations[n]`(n → n+1)을 추가한다.
  */
-const migrations: Record<number, (doc: Record<string, unknown>) => Record<string, unknown>> = {};
+const migrations: Record<number, (doc: Record<string, unknown>) => Record<string, unknown>> = {
+  /** v1 → v2: 순환 기록 컬렉션 추가 */
+  1: (doc) => ({ ...doc, loops: doc.loops ?? {} }),
+};
 
 export function migrate(raw: unknown): unknown {
   if (typeof raw !== 'object' || raw === null) throw new MigrationError('문서 형식이 아닙니다.');

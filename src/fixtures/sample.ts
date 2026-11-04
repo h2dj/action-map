@@ -4,6 +4,7 @@
  * 개인 이름은 쓰지 않고 '나'로 표기한다.
  */
 import { addActivity, addActor, addFactor, addOutcome, addRelation, createEmptyDocument } from '../domain/ops';
+import { addLoop } from '../domain/loops';
 import type { MapDocument } from '../domain/schema';
 
 export function buildSampleDocument(now = '2026-11-03T00:00:00.000Z'): MapDocument {
@@ -58,6 +59,10 @@ export function buildSampleDocument(now = '2026-11-03T00:00:00.000Z'): MapDocume
   });
   addFactor(doc, { id: 'F02', name: '운영 업무량', increaseMeans: '조직 운영에 드는 일이 늘어난다' });
   addFactor(doc, { id: 'F03', name: '현장 피드백의 양', increaseMeans: '교육 현장에서 돌아오는 의견이 늘어난다' });
+  addFactor(doc, { id: 'F04', name: '교육 적합성', increaseMeans: '교육 내용이 참여자의 실제 필요에 더 잘 맞는다' });
+  addFactor(doc, { id: 'F05', name: '역할 분담 정도', increaseMeans: '운영 일을 여러 사람이 나누어 맡는다' });
+  addFactor(doc, { id: 'F06', name: '참여자의 활용 경험', increaseMeans: '배운 기술을 일상과 활동에서 실제로 써 본 경험이 쌓인다' });
+  addFactor(doc, { id: 'F07', name: '교육 참여자 수', increaseMeans: 'IT학교에 참여하는 사람이 늘어난다' });
 
   // 활동 간 연결 (샘플 01)
   const link = (id: string, from: string, to: string, subtype: string, description: string, status: 'active' | 'planned' = 'active') =>
@@ -77,6 +82,25 @@ export function buildSampleDocument(now = '2026-11-03T00:00:00.000Z'): MapDocume
   addRelation(doc, { id: 'R11', kind: 'factorLink', from: 'A04', to: 'F01', description: '미래 준비와 시간 경합', influence: { sign: '-' }, status: 'planned' });
   addRelation(doc, { id: 'R12', kind: 'factorLink', from: 'A09', to: 'F01', description: '역할 분산으로 부담 완화', influence: { sign: '+' }, status: 'planned' });
   addRelation(doc, { id: 'R13', kind: 'influence', from: 'F02', to: 'F01', description: '업무량이 늘면 회복 여력이 줄어든다', influence: { sign: '-' } });
+
+  // 영향 관계 (2단계 순환 분석 표본). 모두 검토용 가설이다.
+  const inf = (id: string, from: string, to: string, sign: '+' | '-', description: string, delayed = false) =>
+    addRelation(doc, { id, kind: 'influence', from, to, description, influence: { sign, ...(delayed ? { delayed: true } : {}) } });
+  inf('R14', 'F01', 'F05', '+', '여력이 있어야 역할을 나누는 일에도 힘을 쓸 수 있다');
+  inf('R15', 'F05', 'F02', '-', '역할을 나누면 한 사람의 운영 업무가 줄어든다', true);
+  inf('R16', 'F03', 'F04', '+', '현장 의견을 반영하면 교육이 필요에 더 맞는다');
+  inf('R17', 'F04', 'F06', '+', '맞는 교육일수록 배운 것을 실제로 써 본다');
+  inf('R18', 'F06', 'F03', '+', '써 본 경험이 다시 현장 의견으로 돌아온다');
+  inf('R19', 'F04', 'F07', '+', '교육이 알려지면 참여자가 는다', true);
+  inf('R20', 'F07', 'F02', '+', '참여자가 늘면 운영 업무도 는다');
+  inf('R21', 'F02', 'F04', '-', '업무에 쫓기면 교육을 다듬을 여유가 줄어든다', true);
+  addRelation(doc, { id: 'R22', kind: 'factorLink', from: 'A02', to: 'F07', description: '참여자 모집', influence: { sign: '+' } });
+  addRelation(doc, { id: 'R23', kind: 'factorLink', from: 'A02', to: 'F03', description: '교육 현장', influence: { sign: '+' } });
+
+  // 순환 (사용자가 구성한 예시)
+  addLoop(doc, { id: 'L_R1', name: 'R1 과부하', factorIds: ['F02', 'F01', 'F05'], description: '업무가 늘면 여력이 줄고, 역할을 나눌 힘도 줄어 업무가 더 몰린다' });
+  addLoop(doc, { id: 'L_R2', name: 'R2 현장 배움', factorIds: ['F03', 'F04', 'F06'], description: '현장 의견이 교육을 다듬고, 쓸모 있는 교육이 다시 의견을 낳는다' });
+  addLoop(doc, { id: 'L_B1', name: 'B1 성장의 한계', factorIds: ['F04', 'F07', 'F02'], description: '좋은 교육이 참여자를 늘리지만, 늘어난 업무가 교육의 질을 다시 낮춘다' });
 
   // 기여 (샘플 02)
   const contrib = (id: string, from: string, to: string, extra: { description?: string; enabling?: boolean; status?: 'planned' } = {}) =>

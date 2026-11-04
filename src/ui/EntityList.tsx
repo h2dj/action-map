@@ -7,6 +7,8 @@ import type { Activity, Id } from '../domain/schema';
 import { timeLayerOf } from '../domain/time';
 import { activityStatusLabel } from '../domain/vocab';
 import { useMap } from '../store/mapStore';
+import { analyzeLoop } from '../domain/loops';
+import { nameOf } from './labels';
 import { useUi } from './uiStore';
 
 const layerLabel = { past: '해온', present: '진행', future: '하려는' } as const;
@@ -109,6 +111,10 @@ export function EntityList() {
   const changes = Object.values(doc.outcomes).filter((o) => o.level === 'change' && match(o.name));
   const purposes = Object.values(doc.outcomes).filter((o) => o.level === 'purpose' && match(o.name));
   const factors = Object.values(doc.factors).filter((f) => match(f.name));
+  const loops = Object.values(doc.loops).filter((l) => match(l.name));
+  const reviews = Object.values(doc.reviews)
+    .filter((r) => match(`${r.judgment ?? ''} ${r.question ?? ''}`))
+    .sort((a, b) => b.date.localeCompare(a.date));
 
   const section = (title: string, count: number, body: React.ReactNode) => (
     <section className="list-section" aria-label={title}>
@@ -174,6 +180,60 @@ export function EntityList() {
           ))}
         </ul>,
       )}
+      {section(
+        '순환',
+        loops.length,
+        <ul>
+          {loops.map((l) => (
+            <li key={l.id}>
+              <LoopItem id={l.id} name={l.name} meta={{ R: '강화', B: '균형', undetermined: '판정 보류', broken: '끊김' }[analyzeLoop(doc, l.factorIds).kind]} />
+            </li>
+          ))}
+        </ul>,
+      )}
+      {section(
+        '검토 기록',
+        reviews.length,
+        <ul>
+          {reviews.map((r) => (
+            <li key={r.id}>
+              <ReviewItem
+                targetId={r.targetIds[0]}
+                text={r.judgment ?? r.question ?? ''}
+                meta={`${r.date} · ${r.targetIds.map((t) => (doc.loops[t]?.name ?? (doc.relations[t] ? '관계' : nameOf(doc, t)))).join(', ') || '대상 없음'}`}
+              />
+            </li>
+          ))}
+        </ul>,
+      )}
     </nav>
+  );
+}
+
+function LoopItem({ id, name, meta }: { id: Id; name: string; meta: string }) {
+  const selected = useUi((s) => s.selection?.kind === 'loop' && s.selection.id === id);
+  const select = useUi((s) => s.select);
+  return (
+    <button className={`list-item${selected ? ' selected' : ''}`} aria-current={selected || undefined} onClick={() => select({ kind: 'loop', id })}>
+      <span className="name">{name}</span>
+      <span className="meta">{meta}</span>
+    </button>
+  );
+}
+
+function ReviewItem({ targetId, text, meta }: { targetId?: Id; text: string; meta: string }) {
+  const doc = useMap((s) => s.doc);
+  const select = useUi((s) => s.select);
+  const go = () => {
+    if (!targetId) return;
+    if (doc.loops[targetId]) select({ kind: 'loop', id: targetId });
+    else if (doc.relations[targetId]) select({ kind: 'relation', id: targetId });
+    else select({ kind: 'entity', id: targetId });
+  };
+  return (
+    <button className="list-item" onClick={go} disabled={!targetId}>
+      <span className="name review-text">{text}</span>
+      <span className="meta">{meta}</span>
+    </button>
   );
 }

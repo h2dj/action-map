@@ -5,7 +5,8 @@ import { z } from 'zod';
  * 내용(엔티티·관계)과 배치(ViewState)를 분리한다. 모든 대상은 고유 ID로 식별하며
  * 이름이 같아도 자동 병합하지 않는다.
  */
-export const SCHEMA_VERSION = 1 as const;
+/** v1 → v2: 순환(loops) 기록 추가 (2단계) */
+export const SCHEMA_VERSION = 2 as const;
 
 export const Id = z.string().min(1);
 export type Id = z.infer<typeof Id>;
@@ -171,6 +172,18 @@ export const ReviewNote = z.object({
 });
 export type ReviewNote = z.infer<typeof ReviewNote>;
 
+/**
+ * 사용자가 직접 구성한 순환 (2단계). 변화 요인을 순서대로 이어 마지막에서 처음으로 닫힌다.
+ * 강화(R)·균형(B) 판정은 저장하지 않고 영향 관계의 부호로 매번 계산한다.
+ */
+export const Loop = z.object({
+  id: Id,
+  name: z.string().min(1),
+  factorIds: z.array(Id).min(2),
+  description: z.string().optional(),
+});
+export type Loop = z.infer<typeof Loop>;
+
 export const Workspace = z.object({
   id: Id,
   name: z.string().min(1),
@@ -191,6 +204,7 @@ export const MapDocument = z.object({
   relations: z.record(z.string(), Relation),
   views: z.record(z.string(), ViewState),
   reviews: z.record(z.string(), ReviewNote),
+  loops: z.record(z.string(), Loop),
 });
 export type MapDocument = z.infer<typeof MapDocument>;
 
